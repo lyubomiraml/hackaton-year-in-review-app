@@ -1,51 +1,11 @@
 import { ChevronLeft, ChevronRight, Sparkles, Upload, X } from "lucide-react";
 import { useState } from "react";
 
-interface Answer {
-  value?: string | number;
-  text?: string;
-  photos?: string[];
-  selected?: string[];
-  other?: string;
-  months?: { [key: number]: { location?: string; photos?: string[] } };
-  details?: { [key: string]: string };
-  [key: string]: any;
-}
-
-interface Answers {
-  [key: string]: Answer;
-}
-
-interface Slide {
-  type: string;
-  title: string;
-  subtitle?: string;
-  text?: string;
-  photos?: string[];
-  stats?: Array<{
-    label: string;
-    value: string | number;
-    emoji?: string;
-    comment?: string;
-  }>;
-  items?: string[];
-  gradient: string;
-  redFlag?: boolean;
-  commentary?: string;
-  value?: string | number;
-}
-
 const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Answers>({});
+  const [answers, setAnswers] = useState({});
   const [showPresentation, setShowPresentation] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [webhookUrl] = useState(
-    "https://kk-agent.app.n8n.cloud/webhook-test/d0b06c35-1717-451a-86e0-b0cf54b1ed6d"
-  );
-  const [showWebhookModal, setShowWebhookModal] = useState(false);
-  const [webhookStatus, setWebhookStatus] = useState("");
-  const [llmResponse, setLlmResponse] = useState<string | null>(null);
 
   const lifeEvents = [
     "Started a new job",
@@ -193,21 +153,12 @@ const App = () => {
     },
   ];
 
-  const handleFileUpload = (
-    questionId: string,
-    files: FileList | null,
-    monthIndex: number | null = null
-  ) => {
-    if (!files) return;
+  const handleFileUpload = (questionId, files, monthIndex = null) => {
     const fileArray = Array.from(files);
     const readers = fileArray.map((file) => {
-      return new Promise<string>((resolve) => {
+      return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            resolve(e.target.result as string);
-          }
-        };
+        reader.onload = (e) => resolve(e.target.result);
         reader.readAsDataURL(file);
       });
     });
@@ -242,11 +193,7 @@ const App = () => {
     });
   };
 
-  const removePhoto = (
-    questionId: string,
-    photoIndex: number,
-    monthIndex: number | null = null
-  ) => {
+  const removePhoto = (questionId, photoIndex, monthIndex = null) => {
     if (monthIndex !== null) {
       setAnswers((prev) => ({
         ...prev,
@@ -275,10 +222,10 @@ const App = () => {
   };
 
   const updateAnswer = (
-    questionId: string,
-    value: string | number,
-    field: string = "value",
-    monthIndex: number | null = null
+    questionId,
+    value,
+    field = "value",
+    monthIndex = null
   ) => {
     if (monthIndex !== null) {
       setAnswers((prev) => ({
@@ -305,83 +252,18 @@ const App = () => {
     }
   };
 
-  const toggleLifeEvent = (event: string) => {
+  const toggleLifeEvent = (event) => {
     const current = answers.lifeEvents?.selected || [];
     const updated = current.includes(event)
       ? current.filter((e) => e !== event)
       : [...current, event];
-    updateAnswer("lifeEvents", updated as any, "selected");
+    updateAnswer("lifeEvents", updated, "selected");
   };
 
-  const sendToWebhook = async () => {
-    if (!webhookUrl) {
-      setWebhookStatus("Please enter a webhook URL");
-      return;
-    }
+  const generateSlides = () => {
+    const slides = [];
 
-    setWebhookStatus("Sending to n8n...");
-
-    try {
-      const payload = {
-        timestamp: new Date().toISOString(),
-        answers: answers,
-        summary: {
-          totalQuestions: questions.length,
-          answeredQuestions: Object.keys(answers).length,
-          dates: answers.dates?.value || 0,
-          breakups: answers.breakups?.value || 0,
-          relationships: answers.relationships?.value || 0,
-          lifeEvents: [
-            ...(answers.lifeEvents?.selected || []),
-            answers.lifeEvents?.other,
-          ].filter(Boolean),
-          totalPhotos: Object.values(answers).reduce((acc, val) => {
-            if (val?.photos) return acc + val.photos.length;
-            if (val?.months) {
-              return (
-                acc +
-                Object.values(val.months).reduce(
-                  (sum, month) => sum + (month?.photos?.length || 0),
-                  0
-                )
-              );
-            }
-            return acc;
-          }, 0),
-        },
-      };
-
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setWebhookStatus("✅ Successfully sent to n8n!");
-
-        if (data.llmResponse) {
-          setLlmResponse(data.llmResponse);
-        }
-
-        setTimeout(() => {
-          setShowWebhookModal(false);
-          setWebhookStatus("");
-        }, 2000);
-      } else {
-        setWebhookStatus(`❌ Error: ${response.status} ${response.statusText}`);
-      }
-    } catch (error) {
-      setWebhookStatus(`❌ Failed to send: ${(error as Error).message}`);
-    }
-  };
-
-  const generateSlides = (): Slide[] => {
-    const slides: Slide[] = [];
-
+    // Title slide
     slides.push({
       type: "title",
       title: "✨ My Year in Review ✨",
@@ -389,10 +271,11 @@ const App = () => {
       gradient: "from-pink-400 via-purple-400 to-indigo-400",
     });
 
+    // Romance section
     if (answers.dates?.value || answers.breakups?.value) {
-      const dateCount = parseInt(String(answers.dates?.value || 0));
-      const breakupCount = parseInt(String(answers.breakups?.value || 0));
-      const relCount = parseInt(String(answers.relationships?.value || 0));
+      const dateCount = parseInt(answers.dates?.value || 0);
+      const breakupCount = parseInt(answers.breakups?.value || 0);
+      const relCount = parseInt(answers.relationships?.value || 0);
 
       let commentary = "";
       if (dateCount > 30) commentary = "Girl what?? 😳";
@@ -407,8 +290,8 @@ const App = () => {
         type: "stat",
         title: "💕 Romance Stats",
         stats: [
-          { label: "Dates", value: String(answers.dates?.value || 0) },
-          { label: "Breakups", value: String(answers.breakups?.value || 0) },
+          { label: "Dates", value: answers.dates?.value || 0 },
+          { label: "Breakups", value: answers.breakups?.value || 0 },
         ],
         commentary: commentary,
         gradient: "from-rose-400 via-pink-400 to-red-400",
@@ -416,7 +299,7 @@ const App = () => {
     }
 
     if (answers.relationships?.value) {
-      const relCount = parseInt(String(answers.relationships?.value || 0));
+      const relCount = parseInt(answers.relationships?.value);
       let subtitle = "";
       if (relCount === 0) subtitle = "Single & Thriving Era 👑";
       else if (relCount === 1) subtitle = "Committed Queen 💍";
@@ -426,7 +309,7 @@ const App = () => {
       slides.push({
         type: "stat-single",
         title: "💑 Relationships",
-        value: String(answers.relationships?.value || 0),
+        value: answers.relationships?.value,
         subtitle: subtitle,
         gradient: "from-pink-400 via-rose-400 to-purple-400",
       });
@@ -436,7 +319,7 @@ const App = () => {
       slides.push({
         type: "text-photo",
         title: "🎉 Fun Relationship Moments",
-        text: String(answers.funThings?.value || ""),
+        text: answers.funThings?.value,
         photos: answers.funThings?.photos || [],
         gradient: "from-yellow-400 via-orange-400 to-pink-400",
       });
@@ -446,7 +329,7 @@ const App = () => {
       slides.push({
         type: "text-photo",
         title: "😬 Lessons Learned",
-        text: String(answers.worstThings?.value || ""),
+        text: answers.worstThings?.value,
         photos: answers.worstThings?.photos || [],
         gradient: "from-purple-400 via-indigo-400 to-blue-400",
       });
@@ -456,39 +339,35 @@ const App = () => {
       slides.push({
         type: "text-photo",
         title: "🚩 Craziest Dating Story",
-        text: String(answers.datingStory?.value || ""),
+        text: answers.datingStory?.value,
         photos: answers.datingStory?.photos || [],
         gradient: "from-red-500 via-red-400 to-orange-400",
         redFlag: true,
       });
     }
 
-    if (
-      (answers.lifeEvents?.selected?.length || 0) > 0 ||
-      answers.lifeEvents?.other
-    ) {
+    // Life events
+    if (answers.lifeEvents?.selected?.length > 0 || answers.lifeEvents?.other) {
       const allEvents = [
         ...(answers.lifeEvents?.selected || []),
         answers.lifeEvents?.other,
       ].filter(Boolean);
 
-      allEvents.forEach((event: string | undefined) => {
-        if (!event) return;
-        const hasDetails =
-          answers.lifeEventsDetails?.details?.[event as string];
+      allEvents.forEach((event) => {
+        const hasDetails = answers.lifeEventsDetails?.details?.[event];
         const hasPhotos =
-          (answers.lifeEventsDetails?.photos?.[event as string]?.length || 0) >
-          0;
+          answers.lifeEventsDetails?.photos?.[event]?.length > 0;
 
         if (hasDetails || hasPhotos) {
           slides.push({
             type: "text-photo",
             title: `🌟 ${event}`,
-            text: String(hasDetails || ""),
-            photos: answers.lifeEventsDetails?.photos?.[event as string] || [],
+            text: hasDetails || "",
+            photos: answers.lifeEventsDetails?.photos?.[event] || [],
             gradient: "from-cyan-400 via-blue-400 to-purple-400",
           });
         } else {
+          // Just show the event name if no details
           if (
             !slides.find(
               (s) => s.type === "list" && s.title === "🌟 Life Events"
@@ -504,19 +383,18 @@ const App = () => {
           const lifeEventsSlide = slides.find(
             (s) => s.type === "list" && s.title === "🌟 Life Events"
           );
-          if (lifeEventsSlide?.items) {
-            lifeEventsSlide.items.push(event);
-          }
+          lifeEventsSlide.items.push(event);
         }
       });
     }
 
+    // Trips
     if (answers.trips?.months) {
       Object.entries(answers.trips.months).forEach(([monthIdx, data]) => {
-        if (data.location || (data.photos?.length || 0) > 0) {
+        if (data.location || data.photos?.length > 0) {
           slides.push({
             type: "text-photo",
-            title: `✈️ ${months[parseInt(monthIdx)]} Adventures`,
+            title: `✈️ ${months[monthIdx]} Adventures`,
             text: data.location || "",
             photos: data.photos || [],
             gradient: "from-teal-400 via-cyan-400 to-blue-400",
@@ -525,31 +403,34 @@ const App = () => {
       });
     }
 
+    // Hobbies
     if (answers.hobbies?.value) {
       slides.push({
         type: "text",
         title: "🎨 New Hobbies",
-        text: String(answers.hobbies?.value || ""),
+        text: answers.hobbies?.value,
         gradient: "from-green-400 via-emerald-400 to-teal-400",
       });
     }
 
+    // Year highlight
     if (
       answers.yearHighlight?.value ||
-      (answers.yearHighlight?.photos?.length || 0) > 0
+      answers.yearHighlight?.photos?.length > 0
     ) {
       slides.push({
         type: "text-photo",
         title: "⭐ Year Highlight",
-        text: String(answers.yearHighlight?.value || ""),
+        text: answers.yearHighlight?.value || "",
         photos: answers.yearHighlight?.photos || [],
         gradient: "from-amber-400 via-yellow-400 to-orange-400",
       });
     }
 
+    // Stats section
     const stats = [];
     if (answers.partying?.value) {
-      const count = parseInt(String(answers.partying?.value || 0));
+      const count = parseInt(answers.partying?.value);
       let comment =
         count > 50
           ? "(Party animal! 🦁)"
@@ -558,13 +439,13 @@ const App = () => {
           : "(Casual vibes ✨)";
       stats.push({
         label: "Party Nights",
-        value: String(answers.partying.value),
+        value: answers.partying.value,
         emoji: "🎊",
         comment,
       });
     }
     if (answers.drunk?.value) {
-      const count = parseInt(String(answers.drunk?.value || 0));
+      const count = parseInt(answers.drunk?.value);
       let comment =
         count > 30
           ? "(No regrets. 🔥)"
@@ -573,13 +454,13 @@ const App = () => {
           : "(Responsible icon 🌟)";
       stats.push({
         label: "Got Drunk",
-        value: String(answers.drunk.value),
+        value: answers.drunk.value,
         emoji: "🍷",
         comment,
       });
     }
     if (answers.books?.value) {
-      const count = parseInt(String(answers.books?.value || 0));
+      const count = parseInt(answers.books?.value);
       let comment =
         count > 30
           ? "(Intellectual queen! 👑)"
@@ -588,13 +469,13 @@ const App = () => {
           : "(At least you tried! 💫)";
       stats.push({
         label: "Books Read",
-        value: String(answers.books.value),
+        value: answers.books.value,
         emoji: "📚",
         comment,
       });
     }
     if (answers.breakdowns?.value) {
-      const count = parseInt(String(answers.breakdowns?.value || 0));
+      const count = parseInt(answers.breakdowns?.value);
       let comment =
         count > 20
           ? "(But we're stronger now! 💪)"
@@ -603,13 +484,13 @@ const App = () => {
           : "(Queen of stability! 👑)";
       stats.push({
         label: "Mental Breakdowns",
-        value: String(answers.breakdowns.value),
+        value: answers.breakdowns.value,
         emoji: "😭",
         comment,
       });
     }
     if (answers.hotOutfits?.value) {
-      const count = parseInt(String(answers.hotOutfits?.value || 0));
+      const count = parseInt(answers.hotOutfits?.value);
       let comment =
         count > 50
           ? "(SERVE AFTER SERVE! 🔥)"
@@ -618,7 +499,7 @@ const App = () => {
           : "(Quality > Quantity 👗)";
       stats.push({
         label: "Hot Outfits",
-        value: String(answers.hotOutfits.value),
+        value: answers.hotOutfits.value,
         emoji: "🔥",
         comment,
       });
@@ -633,17 +514,17 @@ const App = () => {
       });
     }
 
-    if (answers.books?.text || (answers.books?.photos?.length || 0) > 0) {
+    if (answers.books?.text || answers.books?.photos?.length > 0) {
       slides.push({
         type: "text-photo",
         title: "📖 Book Highlights",
-        text: String(answers.books?.text || ""),
+        text: answers.books?.text || "",
         photos: answers.books?.photos || [],
         gradient: "from-indigo-400 via-purple-400 to-pink-400",
       });
     }
 
-    if ((answers.hotOutfits?.photos?.length || 0) > 0) {
+    if (answers.hotOutfits?.photos?.length > 0) {
       slides.push({
         type: "photo-grid",
         title: "🔥 Hot Outfit Collection",
@@ -652,6 +533,7 @@ const App = () => {
       });
     }
 
+    // End slide
     slides.push({
       type: "end",
       title: "Here's to Another Year of Chaos! 🥂",
@@ -700,7 +582,7 @@ const App = () => {
                 type="number"
                 min="0"
                 max={question.max}
-                value={String(answers[question.id]?.value || "")}
+                value={answers[question.id]?.value || ""}
                 onChange={(e) => updateAnswer(question.id, e.target.value)}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
                 placeholder="Enter a number"
@@ -709,11 +591,11 @@ const App = () => {
 
             {(question.type === "text" || question.type === "text-photo") && (
               <textarea
-                value={String(answers[question.id]?.value || "")}
+                value={answers[question.id]?.value || ""}
                 onChange={(e) => updateAnswer(question.id, e.target.value)}
                 maxLength={500}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg resize-none"
-                rows={4}
+                rows="4"
                 placeholder="Type your answer..."
               />
             )}
@@ -724,7 +606,7 @@ const App = () => {
                   type="number"
                   min="0"
                   max={question.max}
-                  value={String(answers[question.id]?.value || "")}
+                  value={answers[question.id]?.value || ""}
                   onChange={(e) => updateAnswer(question.id, e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
                   placeholder="Enter a number"
@@ -742,25 +624,23 @@ const App = () => {
                     className="hidden"
                   />
                 </label>
-                {(answers[question.id]?.photos?.length || 0) > 0 && (
+                {answers[question.id]?.photos?.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mt-4">
-                    {answers[question.id].photos?.map(
-                      (photo: string, idx: number) => (
-                        <div key={idx} className="relative group">
-                          <img
-                            src={photo}
-                            alt=""
-                            className="w-full h-24 object-cover rounded-lg"
-                          />
-                          <button
-                            onClick={() => removePhoto(question.id, idx)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      )
-                    )}
+                    {answers[question.id].photos.map((photo, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={photo}
+                          alt=""
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={() => removePhoto(question.id, idx)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </>
@@ -769,11 +649,11 @@ const App = () => {
             {question.type === "text-photo" && (
               <div>
                 <textarea
-                  value={String(answers[question.id]?.value || "")}
+                  value={answers[question.id]?.value || ""}
                   onChange={(e) => updateAnswer(question.id, e.target.value)}
                   maxLength={500}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg resize-none mb-4"
-                  rows={4}
+                  rows="4"
                   placeholder="Type your answer..."
                 />
                 <label className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:border-purple-500 transition-colors">
@@ -789,25 +669,23 @@ const App = () => {
                     className="hidden"
                   />
                 </label>
-                {(answers[question.id]?.photos?.length || 0) > 0 && (
+                {answers[question.id]?.photos?.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mt-4">
-                    {answers[question.id].photos?.map(
-                      (photo: string, idx: number) => (
-                        <div key={idx} className="relative group">
-                          <img
-                            src={photo}
-                            alt=""
-                            className="w-full h-24 object-cover rounded-lg"
-                          />
-                          <button
-                            onClick={() => removePhoto(question.id, idx)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      )
-                    )}
+                    {answers[question.id].photos.map((photo, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={photo}
+                          alt=""
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={() => removePhoto(question.id, idx)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -819,7 +697,7 @@ const App = () => {
                   type="number"
                   min="0"
                   max={question.max}
-                  value={String(answers[question.id]?.value || "")}
+                  value={answers[question.id]?.value || ""}
                   onChange={(e) => updateAnswer(question.id, e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
                   placeholder="Enter a number"
@@ -831,7 +709,7 @@ const App = () => {
                   }
                   maxLength={500}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg resize-none"
-                  rows={3}
+                  rows="3"
                   placeholder={question.subText}
                 />
                 <label className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:border-purple-500 transition-colors">
@@ -847,25 +725,23 @@ const App = () => {
                     className="hidden"
                   />
                 </label>
-                {(answers[question.id]?.photos?.length || 0) > 0 && (
+                {answers[question.id]?.photos?.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mt-4">
-                    {answers[question.id].photos?.map(
-                      (photo: string, idx: number) => (
-                        <div key={idx} className="relative group">
-                          <img
-                            src={photo}
-                            alt=""
-                            className="w-full h-24 object-cover rounded-lg"
-                          />
-                          <button
-                            onClick={() => removePhoto(question.id, idx)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      )
-                    )}
+                    {answers[question.id].photos.map((photo, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={photo}
+                          alt=""
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={() => removePhoto(question.id, idx)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </>
@@ -874,7 +750,7 @@ const App = () => {
             {question.type === "multi-select" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  {question.options?.map((option) => (
+                  {question.options.map((option) => (
                     <button
                       key={option}
                       onClick={() => toggleLifeEvent(option)}
@@ -942,7 +818,7 @@ const App = () => {
                         }}
                         maxLength={500}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none mb-2 resize-none"
-                        rows={2}
+                        rows="2"
                         placeholder="Tell us more... (e.g., what course? how did it happen?)"
                       />
                       <label className="flex items-center justify-center w-full px-3 py-2 border border-dashed border-purple-400 rounded-lg cursor-pointer hover:border-purple-600 transition-colors text-sm">
@@ -953,79 +829,61 @@ const App = () => {
                           multiple
                           accept=".jpg,.jpeg,.png"
                           onChange={(e) => {
-                            if (!e.target.files) return;
                             const fileArray = Array.from(e.target.files);
                             const readers = fileArray.map((file) => {
-                              return new Promise<string>((resolve) => {
+                              return new Promise((resolve) => {
                                 const reader = new FileReader();
-                                reader.onload = (event) => {
-                                  if (event.target?.result) {
-                                    resolve(event.target.result as string);
-                                  }
-                                };
+                                reader.onload = (e) => resolve(e.target.result);
                                 reader.readAsDataURL(file);
                               });
                             });
 
                             Promise.all(readers).then((images) => {
-                              setAnswers(
-                                (prev) =>
-                                  ({
-                                    ...prev,
-                                    [question.id]: {
-                                      ...prev[question.id],
-                                      photos: {
-                                        ...prev[question.id]?.photos,
-                                        [event as string]: [
-                                          ...(prev[question.id]?.photos?.[
-                                            event as string
-                                          ] || []),
-                                          ...images,
-                                        ],
-                                      },
-                                    },
-                                  } as Answers)
-                              );
+                              setAnswers((prev) => ({
+                                ...prev,
+                                [question.id]: {
+                                  ...prev[question.id],
+                                  photos: {
+                                    ...prev[question.id]?.photos,
+                                    [event]: [
+                                      ...(prev[question.id]?.photos?.[event] ||
+                                        []),
+                                      ...images,
+                                    ],
+                                  },
+                                },
+                              }));
                             });
                           }}
                           className="hidden"
                         />
                       </label>
-                      {(answers[question.id]?.photos?.[event]?.length || 0) >
-                        0 && (
-                        <div className="grid grid-cols-3 gap-2 mt-2">
-                          {answers[question.id].photos?.[event]?.map(
-                            (photo: string, photoIdx: number) => (
+                      {answers[question.id]?.photos?.[event]?.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2 mt-2">
+                          {answers[question.id].photos[event].map(
+                            (photo, photoIdx) => (
                               <div key={photoIdx} className="relative group">
                                 <img
                                   src={photo}
                                   alt=""
-                                  className="w-full h-20 object-cover rounded-lg"
+                                  className="w-full h-16 object-cover rounded"
                                 />
                                 <button
                                   onClick={() => {
-                                    setAnswers(
-                                      (prev) =>
-                                        ({
-                                          ...prev,
-                                          [question.id]: {
-                                            ...prev[question.id],
-                                            photos: {
-                                              ...prev[question.id]?.photos,
-                                              [event as string]: prev[
-                                                question.id
-                                              ]?.photos?.[
-                                                event as string
-                                              ]?.filter(
-                                                (_: any, i: number) =>
-                                                  i !== photoIdx
-                                              ),
-                                            },
-                                          },
-                                        } as Answers)
-                                    );
+                                    setAnswers((prev) => ({
+                                      ...prev,
+                                      [question.id]: {
+                                        ...prev[question.id],
+                                        photos: {
+                                          ...prev[question.id]?.photos,
+                                          [event]: prev[question.id]?.photos?.[
+                                            event
+                                          ].filter((_, i) => i !== photoIdx),
+                                        },
+                                      },
+                                    }));
                                   }}
-                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <X size={12} />
                                 </button>
@@ -1041,32 +899,30 @@ const App = () => {
             )}
 
             {question.type === "monthly-trips" && (
-              <div className="space-y-4">
-                {months.map((month, monthIdx) => (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {months.map((month, idx) => (
                   <div
-                    key={monthIdx}
-                    className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50/30"
+                    key={idx}
+                    className="border-2 border-gray-200 rounded-xl p-4"
                   >
-                    <h3 className="font-semibold text-lg mb-3 text-blue-700">
-                      {month}
-                    </h3>
+                    <h3 className="font-semibold text-lg mb-2">{month}</h3>
                     <input
                       type="text"
                       value={
-                        answers[question.id]?.months?.[monthIdx]?.location || ""
+                        answers[question.id]?.months?.[idx]?.location || ""
                       }
                       onChange={(e) =>
                         updateAnswer(
                           question.id,
                           e.target.value,
                           "location",
-                          monthIdx
+                          idx
                         )
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none mb-2"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none mb-2"
                       placeholder="Where did you go?"
                     />
-                    <label className="flex items-center justify-center w-full px-3 py-2 border border-dashed border-blue-400 rounded-lg cursor-pointer hover:border-blue-600 transition-colors text-sm">
+                    <label className="flex items-center justify-center w-full px-3 py-2 border border-dashed border-purple-300 rounded-lg cursor-pointer hover:border-purple-500 transition-colors text-sm">
                       <Upload className="mr-2" size={16} />
                       <span>Add Photos</span>
                       <input
@@ -1074,31 +930,27 @@ const App = () => {
                         multiple
                         accept=".jpg,.jpeg,.png"
                         onChange={(e) =>
-                          handleFileUpload(
-                            question.id,
-                            e.target.files,
-                            monthIdx
-                          )
+                          handleFileUpload(question.id, e.target.files, idx)
                         }
                         className="hidden"
                       />
                     </label>
-                    {(answers[question.id]?.months?.[monthIdx]?.photos
-                      ?.length || 0) > 0 && (
-                      <div className="grid grid-cols-3 gap-2 mt-2">
-                        {answers[question.id].months?.[monthIdx]?.photos?.map(
-                          (photo: string, photoIdx: number) => (
+                    {answers[question.id]?.months?.[idx]?.photos?.length >
+                      0 && (
+                      <div className="grid grid-cols-4 gap-1 mt-2">
+                        {answers[question.id].months[idx].photos.map(
+                          (photo, photoIdx) => (
                             <div key={photoIdx} className="relative group">
                               <img
                                 src={photo}
                                 alt=""
-                                className="w-full h-20 object-cover rounded-lg"
+                                className="w-full h-16 object-cover rounded"
                               />
                               <button
                                 onClick={() =>
-                                  removePhoto(question.id, photoIdx, monthIdx)
+                                  removePhoto(question.id, photoIdx, idx)
                                 }
-                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <X size={12} />
                               </button>
@@ -1117,26 +969,33 @@ const App = () => {
             <button
               onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
               disabled={currentStep === 0}
-              className="flex items-center px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              <ChevronLeft className="mr-2" size={20} />
-              Previous
+              <ChevronLeft className="mr-1" size={20} />
+              Back
             </button>
 
             <button
               onClick={() => {
-                if (currentStep === questions.length - 1) {
-                  setShowPresentation(true);
-                } else {
+                if (currentStep < questions.length - 1) {
                   setCurrentStep(currentStep + 1);
+                } else {
+                  setShowPresentation(true);
                 }
               }}
               className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all"
             >
-              {currentStep === questions.length - 1
-                ? "Generate Review"
-                : "Next"}
-              <ChevronRight className="ml-2" size={20} />
+              {currentStep === questions.length - 1 ? (
+                <>
+                  Generate
+                  <Sparkles className="ml-1" size={20} />
+                </>
+              ) : (
+                <>
+                  Next
+                  <ChevronRight className="ml-1" size={20} />
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1144,222 +1003,274 @@ const App = () => {
     );
   };
 
-  const renderSlide = (slide: Slide) => {
-    const baseClasses =
-      "min-h-screen flex items-center justify-center p-8 bg-gradient-to-br";
-
-    switch (slide.type) {
-      case "title":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="text-center text-white">
-              <h1 className="text-6xl font-bold mb-4">{slide.title}</h1>
-              <p className="text-2xl opacity-90">{slide.subtitle}</p>
-            </div>
+  const renderSlide = (slide) => {
+    return (
+      <div
+        className={`min-h-screen bg-gradient-to-br ${slide.gradient} flex items-center justify-center p-8 relative overflow-hidden`}
+      >
+        {slide.redFlag && (
+          <div className="absolute inset-0 opacity-10 text-6xl">
+            {Array.from({ length: 50 }).map((_, i) => (
+              <span
+                key={i}
+                className="absolute"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  transform: `rotate(${Math.random() * 360}deg)`,
+                }}
+              >
+                🚩
+              </span>
+            ))}
           </div>
-        );
+        )}
 
-      case "stat":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-center text-white">
-              <h2 className="text-4xl font-bold mb-6">{slide.title}</h2>
+        <div className="relative z-10 max-w-4xl w-full">
+          {slide.type === "title" && (
+            <div className="text-center">
+              <h1 className="text-7xl font-bold text-white mb-4 drop-shadow-lg">
+                {slide.title}
+              </h1>
+              <p className="text-3xl text-white/90 drop-shadow">
+                {slide.subtitle}
+              </p>
+            </div>
+          )}
+
+          {slide.type === "stat-single" && (
+            <div className="text-center">
+              <h2 className="text-5xl font-bold text-white mb-8 drop-shadow-lg">
+                {slide.title}
+              </h2>
+              <div className="bg-white/20 backdrop-blur-lg rounded-3xl p-12 inline-block mb-6">
+                <div className="text-8xl font-bold text-white">
+                  {slide.value}
+                </div>
+              </div>
+              {slide.subtitle && (
+                <p className="text-3xl text-white/90 font-semibold drop-shadow">
+                  {slide.subtitle}
+                </p>
+              )}
+            </div>
+          )}
+
+          {slide.type === "stat" && (
+            <div className="text-center">
+              <h2 className="text-5xl font-bold text-white mb-12 drop-shadow-lg">
+                {slide.title}
+              </h2>
               <div className="grid grid-cols-2 gap-8 mb-6">
-                {slide.stats?.map((stat: any, idx: number) => (
-                  <div key={idx} className="bg-white/20 rounded-2xl p-6">
-                    <div className="text-5xl font-bold mb-2">{stat.value}</div>
-                    <div className="text-xl">{stat.label}</div>
+                {slide.stats.map((stat, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white/20 backdrop-blur-lg rounded-3xl p-8"
+                  >
+                    <div className="text-6xl font-bold text-white mb-2">
+                      {stat.value}
+                    </div>
+                    <div className="text-2xl text-white/90">{stat.label}</div>
                   </div>
                 ))}
               </div>
               {slide.commentary && (
-                <p className="text-2xl font-semibold">{slide.commentary}</p>
+                <p className="text-2xl text-white/90 font-semibold drop-shadow">
+                  {slide.commentary}
+                </p>
               )}
             </div>
-          </div>
-        );
+          )}
 
-      case "stat-single":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-center text-white">
-              <h2 className="text-4xl font-bold mb-4">{slide.title}</h2>
-              <div className="text-8xl font-bold mb-4">{slide.value}</div>
-              <p className="text-2xl">{slide.subtitle}</p>
+          {slide.type === "text" && (
+            <div className="text-center">
+              <h2 className="text-5xl font-bold text-white mb-8 drop-shadow-lg">
+                {slide.title}
+              </h2>
+              <p className="text-2xl text-white/90 leading-relaxed bg-white/20 backdrop-blur-lg rounded-3xl p-8">
+                {slide.text}
+              </p>
             </div>
-          </div>
-        );
+          )}
 
-      case "text-photo":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-white max-w-4xl">
-              <h2 className="text-4xl font-bold mb-6 text-center">
+          {slide.type === "text-photo" && (
+            <div>
+              <h2 className="text-5xl font-bold text-white mb-8 text-center drop-shadow-lg">
                 {slide.title}
               </h2>
               {slide.text && (
-                <p className="text-xl mb-6 text-center leading-relaxed">
+                <p className="text-xl text-white/90 mb-6 bg-white/20 backdrop-blur-lg rounded-2xl p-6">
                   {slide.text}
                 </p>
               )}
-              {(slide.photos?.length || 0) > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {slide.photos?.map((photo: string, idx: number) => (
+              {slide.photos?.length > 0 && (
+                <div
+                  className={`grid gap-4 ${
+                    slide.photos.length === 1
+                      ? "grid-cols-1"
+                      : slide.photos.length === 2
+                      ? "grid-cols-2"
+                      : "grid-cols-3"
+                  }`}
+                >
+                  {slide.photos.map((photo, idx) => (
                     <img
                       key={idx}
                       src={photo}
                       alt=""
-                      className="w-full h-48 object-cover rounded-2xl"
+                      className="w-full h-64 object-cover rounded-2xl shadow-2xl"
                     />
                   ))}
                 </div>
               )}
             </div>
-          </div>
-        );
+          )}
 
-      case "text":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-white max-w-4xl text-center">
-              <h2 className="text-4xl font-bold mb-6">{slide.title}</h2>
-              <p className="text-xl leading-relaxed">{slide.text}</p>
-            </div>
-          </div>
-        );
-
-      case "list":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-white max-w-4xl">
-              <h2 className="text-4xl font-bold mb-6 text-center">
+          {slide.type === "list" && (
+            <div>
+              <h2 className="text-5xl font-bold text-white mb-8 text-center drop-shadow-lg">
                 {slide.title}
               </h2>
-              <div className="grid grid-cols-2 gap-4">
-                {slide.items?.map((item: string, idx: number) => (
-                  <div
-                    key={idx}
-                    className="bg-white/20 rounded-2xl p-4 text-center"
-                  >
-                    <span className="text-lg">{item}</span>
-                  </div>
-                ))}
+              <div className="bg-white/20 backdrop-blur-lg rounded-3xl p-8">
+                <ul className="text-2xl text-white/90 space-y-4">
+                  {slide.items.map((item, idx) => (
+                    <li key={idx} className="flex items-center">
+                      <span className="mr-4">✨</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
+              {slide.photos?.length > 0 && (
+                <div className="grid grid-cols-3 gap-4 mt-6">
+                  {slide.photos.map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt=""
+                      className="w-full h-48 object-cover rounded-2xl shadow-2xl"
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        );
+          )}
 
-      case "stats-grid":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-white max-w-6xl">
-              <h2 className="text-4xl font-bold mb-8 text-center">
+          {slide.type === "stats-grid" && (
+            <div className="text-center">
+              <h2 className="text-5xl font-bold text-white mb-12 drop-shadow-lg">
                 {slide.title}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                {slide.stats?.map((stat: any, idx: number) => (
+                {slide.stats.map((stat, idx) => (
                   <div
                     key={idx}
-                    className="bg-white/20 rounded-2xl p-6 text-center"
+                    className="bg-white/20 backdrop-blur-lg rounded-3xl p-6"
                   >
                     <div className="text-4xl mb-2">{stat.emoji}</div>
-                    <div className="text-3xl font-bold mb-2">{stat.value}</div>
-                    <div className="text-lg mb-2">{stat.label}</div>
-                    <div className="text-sm opacity-80">{stat.comment}</div>
+                    <div className="text-5xl font-bold text-white mb-2">
+                      {stat.value}
+                    </div>
+                    <div className="text-lg text-white/90 mb-2">
+                      {stat.label}
+                    </div>
+                    {stat.comment && (
+                      <div className="text-sm text-white/80 italic">
+                        {stat.comment}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        );
+          )}
 
-      case "photo-grid":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 text-white max-w-6xl">
-              <h2 className="text-4xl font-bold mb-8 text-center">
+          {slide.type === "photo-grid" && (
+            <div>
+              <h2 className="text-5xl font-bold text-white mb-8 text-center drop-shadow-lg">
                 {slide.title}
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {slide.photos?.map((photo: string, idx: number) => (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {slide.photos.map((photo, idx) => (
                   <img
                     key={idx}
                     src={photo}
                     alt=""
-                    className="w-full h-48 object-cover rounded-2xl"
+                    className="w-full h-64 object-cover rounded-2xl shadow-2xl"
                   />
                 ))}
               </div>
             </div>
-          </div>
-        );
+          )}
 
-      case "end":
-        return (
-          <div className={`${baseClasses} ${slide.gradient}`}>
-            <div className="text-center text-white">
-              <h1 className="text-6xl font-bold mb-4">{slide.title}</h1>
-              <p className="text-2xl opacity-90">{slide.subtitle}</p>
+          {slide.type === "end" && (
+            <div className="text-center">
+              <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-lg">
+                {slide.title}
+              </h1>
+              <p className="text-3xl text-white/90 drop-shadow">
+                {slide.subtitle}
+              </p>
             </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  if (showPresentation) {
-    const slides = generateSlides();
-
-    return (
-      <div className="min-h-screen bg-black">
-        <div className="absolute top-4 right-4 z-10 flex space-x-4">
-          <button
-            onClick={() => setShowPresentation(false)}
-            className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors"
-          >
-            Back to Questions
-          </button>
-          <button
-            onClick={() => setShowWebhookModal(true)}
-            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-          >
-            <Sparkles className="inline mr-2" size={16} />
-            Send to AI
-          </button>
+          )}
         </div>
-
-        <div className="flex items-center justify-between p-4">
-          <button
-            onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-            disabled={currentSlide === 0}
-            className="p-3 bg-white/20 text-white rounded-full hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={24} />
-          </button>
-
-          <span className="text-white text-lg">
-            {currentSlide + 1} / {slides.length}
-          </span>
-
-          <button
-            onClick={() =>
-              setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))
-            }
-            disabled={currentSlide === slides.length - 1}
-            className="p-3 bg-white/20 text-white rounded-full hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={24} />
-          </button>
-        </div>
-
-        {renderSlide(slides[currentSlide])}
       </div>
     );
+  };
+
+  if (!showPresentation) {
+    return renderQuestion();
   }
 
-  return renderQuestion();
+  const slides = generateSlides();
+
+  return (
+    <div className="relative">
+      {renderSlide(slides[currentSlide])}
+
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-black/50 backdrop-blur-lg rounded-full px-6 py-4">
+        <button
+          onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+          disabled={currentSlide === 0}
+          className="text-white hover:text-pink-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronLeft size={28} />
+        </button>
+
+        <div className="flex gap-2">
+          {slides.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              className={`h-2 rounded-full transition-all ${
+                idx === currentSlide ? "w-8 bg-white" : "w-2 bg-white/50"
+              }`}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={() =>
+            setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))
+          }
+          disabled={currentSlide === slides.length - 1}
+          className="text-white hover:text-pink-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronRight size={28} />
+        </button>
+      </div>
+
+      <button
+        onClick={() => {
+          setShowPresentation(false);
+          setCurrentSlide(0);
+        }}
+        className="fixed top-8 right-8 bg-white/20 backdrop-blur-lg text-white px-6 py-3 rounded-full hover:bg-white/30 transition-all"
+      >
+        Edit Answers
+      </button>
+    </div>
+  );
 };
 
 export default App;
