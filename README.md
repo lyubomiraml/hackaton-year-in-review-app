@@ -42,6 +42,8 @@ A fun and interactive React application for creating personalized yearly reviews
    npm run dev
    ```
 
+
+
 4. **Open your browser**
    Navigate to `http://localhost:3000` to see the application.
 
